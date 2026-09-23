@@ -1,0 +1,36 @@
+# === Salesforce CLI local state (org auth caches — sensitive) ===
+.sf/
+.sfdx/
+.localdevserver/
+*.sfdx-context
+
+# === sfdx-hardis generated reports & logs ===
+hardis-report/
+*.log
+
+# === Secrets & credentials (never commit) ===
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+credentials.json
+secrets.json
+auth-url*.txt
+sfdxAuthUrl*
+server.key
+
+# === Editor / local tooling ===
+.claude/settings.local.json
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# === OS cruft ===
+.DS_Store
+Thumbs.db
+
+# === Node (only if tooling is added later) ===
+node_modules/
+npm-debug.log*

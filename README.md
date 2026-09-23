@@ -1,4 +1,4 @@
-# sf-devops
+# sf-devops-template
 
 Reusable, config-driven CI/CD framework for Salesforce DX projects. One framework, many
 projects: per-project variability lives in a config file, not in forked pipelines. The

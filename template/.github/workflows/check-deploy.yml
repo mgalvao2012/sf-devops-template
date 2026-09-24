@@ -47,10 +47,10 @@ jobs:
       # static analysis / lint / secrets run in the companion mega-linter.yml workflow.
       - name: LWC unit tests (Jest)
         run: |
-          if [ -f package.json ] && npm run 2>/dev/null | grep -q 'test:unit'; then
-            npm ci && npm run test:unit
+          if ls force-app/main/default/lwc/*/ >/dev/null 2>&1; then
+            npm install && npm run test:unit
           else
-            echo "No Jest suite (test:unit script) — skipping."
+            echo "No LWC in project — skipping Jest."
           fi
       # Login & check-only deploy with impacted test classes & code coverage
       - name: Login & Check Deployment

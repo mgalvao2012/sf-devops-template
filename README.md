@@ -42,7 +42,7 @@ sf-devops/
     │   └── project-scratch-def.json
     ├── data/sfdmu/export.json   #   anonymized seed plan (SFDMU)
     ├── scripts/                 #   runtime scripts (preflight, seed-data, gh-setup, validate, lib)
-    └── .github/workflows/       #   check-deploy + mega-linter (PR Gate A), process-deploy (deploy on merge)
+    └── .github/workflows/       #   check-deploy + mega-linter (PR Gate A), auto-merge (green→integration), process-deploy (deploy on merge)
 ```
 
 ## Prerequisites
@@ -107,6 +107,7 @@ No direct commits to major branches; everything via PR.
 |---|---|---|
 | PR → major branch | `check-deploy.yml` | Deployability: delta + check-only smart deploy against target org + impacted Apex tests + Jest |
 | PR → major branch | `mega-linter.yml` | Quality: Code Analyzer (PMD) + ESLint + Prettier + secret scan + copy-paste detection |
+| PR → `integration` | `auto-merge.yml` | Enables native auto-merge (squash) — GitHub merges once the deploy check goes green (no reviewer on integration) |
 | Merge → `integration` | `process-deploy.yml` | Deploy to Integration + full regression |
 | Merge → `uat` | `process-deploy.yml` | Required-reviewer gate + deploy to UAT + regression |
 | Merge → `production` | `process-deploy.yml` | Required-reviewer gate + smart deploy (Quick Deploy) + smoke tests |
@@ -121,6 +122,12 @@ No direct commits to major branches; everything via PR.
   the safe order.
 - **Required status checks are job names,** not workflow names: `Check-only Deployment to Major
   Org` and `MegaLinter`.
+- **Auto-merge on green** (`auto-merge.yml`): PRs into `integration` merge automatically once the
+  `Check-only Deployment to Major Org` check passes — no reviewer on `integration`. It merges with a
+  **PAT (`AUTOMERGE_PAT`, `repo`+`workflow` scope), not `GITHUB_TOKEN`**, because a `GITHUB_TOKEN` merge
+  would not trigger `process-deploy.yml`. `gh-setup.sh` enables the repo setting and sets the secret
+  (`AUTOMERGE_PAT=<token> bash scripts/gh-setup.sh`); it also applies **relaxed protection to
+  `integration`** (deploy check only, 0 reviews) vs the gated `uat`/`production` (both checks + 1 review).
 - **Delta deploys are on** (`useDeltaDeployment: true`): a merge into a major branch deploys only the
   PR's changed metadata (major↔major promotions stay full). The repo ships **no static `package.xml`** —
   both deploy workflows generate a base manifest from `force-app` on every run, so delta never drops a

@@ -3,8 +3,11 @@
 # Idempotent — safe to re-run. Sets up, for each major branch (integration/uat/production):
 #   - repo secret  SFDX_AUTH_URL_<BRANCH>   (sourced from the locally-authenticated org, piped, never printed)
 #   - GitHub Environment (uat/production get required reviewers from config/.sf-devops.yml; branch policy = own branch)
-#   - branch protection: require PR + passing status checks + 1 review
+#   - branch protection, two profiles by whether the branch has approvers:
+#       gated (uat/production): full status checks + N reviews + strict
+#       auto-merge (integration, no approvers): only the deployability check + 0 reviews (so auto-merge.yml merges on green)
 #   - repo variable SFDX_HARDIS_QUICK_DEPLOY=true
+#   - auto-merge: enables the repo "Allow auto-merge" setting + sets the AUTOMERGE_PAT secret (from env AUTOMERGE_PAT)
 #
 # Secrets are REPO-LEVEL by design: check-deploy.yml validates on PRs (no `environment:` context, so it
 # cannot read environment-scoped secrets). The deploy gate is enforced by Environments + required reviewers
@@ -62,18 +65,30 @@ while IFS= read -r _b; do [[ -n "$_b" ]] && BRANCHES+=("$_b"); done \
 # Override with: REQUIRED_CHECKS="Check-only Deployment to Major Org,MegaLinter" scripts/gh-setup.sh
 IFS=',' read -r -a REQUIRED_CHECKS <<< "${REQUIRED_CHECKS:-Check-only Deployment to Major Org,MegaLinter}"
 REVIEW_COUNT="${REVIEW_COUNT:-1}"
+# The single deployability check required on the auto-merge branch (no reviewers). Must match
+# the job `name:` in check-deploy.yml. On integration MegaLinter runs advisory (not blocking),
+# so auto-merge only waits on deployability.
+DEPLOY_CHECK="${DEPLOY_CHECK:-Check-only Deployment to Major Org}"
 
 ENV_DEGRADED=0; CONFIG_CHANGED=0
 upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
 trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
 
-# Apply branch protection to a remote branch (require PR + the Gate A checks + N reviews).
+# Apply branch protection to a remote branch. Two profiles, chosen by whether the branch
+# declares approvers in .sf-devops.yml:
+#   - GATED (uat/production, has approvers): full Gate A checks + N reviews + strict (up-to-date).
+#   - AUTO-MERGE (integration, no approvers): only the deployability check, 0 reviews, non-strict —
+#     so auto-merge.yml can merge on green without a human and without waiting on MegaLinter.
 # Warns (non-fatal) if the branch is not on the remote yet.
 apply_protection() {
-  local branch="$1" ctx
-  ctx="$(printf '%s\n' "${REQUIRED_CHECKS[@]}" | jq -R . | jq -sc .)"
-  jq -nc --argjson ctx "$ctx" --argjson rc "$REVIEW_COUNT" '{
-    required_status_checks: {strict:true, contexts:$ctx},
+  local branch="$1" ctx rc strict
+  if [[ "$(cfg_len ".environments.$branch.approvers")" -gt 0 ]]; then
+    ctx="$(printf '%s\n' "${REQUIRED_CHECKS[@]}" | jq -R . | jq -sc .)"; rc="$REVIEW_COUNT"; strict=true
+  else
+    ctx="$(jq -nc --arg c "$DEPLOY_CHECK" '[$c]')"; rc=0; strict=false
+  fi
+  jq -nc --argjson ctx "$ctx" --argjson rc "$rc" --argjson strict "$strict" '{
+    required_status_checks: {strict:$strict, contexts:$ctx},
     enforce_admins: false,
     required_pull_request_reviews: {required_approving_review_count:$rc, dismiss_stale_reviews:true},
     restrictions: null,
@@ -82,7 +97,7 @@ apply_protection() {
     allow_deletions: false
   }' | gh api -X PUT "repos/$REPO/branches/$branch/protection" \
         -H "Accept: application/vnd.github+json" --input - >/dev/null \
-    && echo "  protection: $branch — PR + checks + $REVIEW_COUNT review" \
+    && echo "  protection: $branch — PR + $(jq length <<<"$ctx") check(s) + $rc review(s)" \
     || warn "  protection: $branch failed (branch must exist on the remote first)"
 }
 
@@ -115,7 +130,8 @@ else
   echo "  repo:            $REPO"
 fi
 echo "  major branches:  ${BRANCHES[*]}"
-echo "  required checks: ${REQUIRED_CHECKS[*]} (+ $REVIEW_COUNT approving review)"
+echo "  required checks: gated branches (with approvers): ${REQUIRED_CHECKS[*]} + $REVIEW_COUNT review"
+echo "                   auto-merge branch (no approvers): $DEPLOY_CHECK + 0 reviews"
 echo "  secrets:         SFDX_AUTH_URL_<BRANCH> (repo-level, sourced from local sf orgs — never printed)"
 echo "  branch config:   config/branches/.sfdx-hardis.<branch>.yml targetUsername/instanceUrl from sf org display"
 echo "  environments:    uat/production with required reviewers from config/.sf-devops.yml; branch policy = own branch"
@@ -125,6 +141,7 @@ else
   echo "  push:            skipped (--no-push)"
 fi
 echo "  variable:        SFDX_HARDIS_QUICK_DEPLOY=true"
+echo "  auto-merge:      enable repo setting + set AUTOMERGE_PAT secret ($([[ -n "${AUTOMERGE_PAT:-}" ]] && echo "from env" || echo "NOT provided — will warn"))"
 echo
 if [[ "$ASSUME_YES" != "1" ]]; then
   read -r -p "Apply this to '$REPO'? [y/N] " ans; [[ "$ans" == "y" || "$ans" == "Y" ]] || { log "Aborted."; exit 0; }
@@ -235,6 +252,24 @@ done
 # 5) Quick Deploy repo variable.
 gh variable set SFDX_HARDIS_QUICK_DEPLOY --repo "$REPO" --body "true" >/dev/null \
   && echo "  variable: SFDX_HARDIS_QUICK_DEPLOY=true" || warn "  variable: failed to set SFDX_HARDIS_QUICK_DEPLOY"
+
+# 6) Auto-merge on green (developmentBranch = integration). Enable the repo setting and set the
+#    PAT that auto-merge.yml uses. The PAT (repo+workflow scope) is REQUIRED because a merge done
+#    with the built-in GITHUB_TOKEN does NOT trigger process-deploy.yml. Provide it via env — it is
+#    piped straight into gh, never printed:  AUTOMERGE_PAT=<token> scripts/gh-setup.sh
+log "── auto-merge ──"
+gh repo edit "$REPO" --enable-auto-merge >/dev/null 2>&1 \
+  && echo "  repo: auto-merge enabled" \
+  || warn "  repo: could not enable auto-merge (need admin on $REPO)"
+if [[ -n "${AUTOMERGE_PAT:-}" ]]; then
+  printf '%s' "$AUTOMERGE_PAT" | gh secret set AUTOMERGE_PAT --repo "$REPO" >/dev/null \
+    && echo "  secret: AUTOMERGE_PAT set (never printed)" \
+    || warn "  secret: failed to set AUTOMERGE_PAT"
+else
+  warn "  secret: AUTOMERGE_PAT not provided — auto-merge.yml stays inert until it is set."
+  warn "          Create a PAT with repo+workflow scope, then re-run: AUTOMERGE_PAT=<token> scripts/gh-setup.sh"
+  warn "          (or set it once by hand: gh secret set AUTOMERGE_PAT --repo $REPO)"
+fi
 
 echo
 log "Done. Verify: gh api repos/$REPO/branches/production/protection | jq '.required_status_checks'"

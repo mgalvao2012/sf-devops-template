@@ -6,7 +6,7 @@ not reusable). Auth is **auth-URL** everywhere (JWT as optional hardening). Majo
 
 `scripts/gh-setup.sh` (in `template/scripts/`, copied per project) configures GitHub via `gh`:
 repo creation, repo-level auth secrets, Environments + required reviewers, branch protection,
-`SFDX_HARDIS_QUICK_DEPLOY` variable. Idempotent.
+`SFDX_HARDIS_QUICK_DEPLOY` variable, auto-merge (repo setting + `AUTOMERGE_PAT` secret). Idempotent.
 
 ## Gotchas
 
@@ -46,3 +46,13 @@ repo creation, repo-level auth secrets, Environments + required reviewers, branc
   refuses to operate on the workspace. Both deploy workflows run
   `git config --global --add safe.directory "$GITHUB_WORKSPACE"` as the first step before any git-backed
   hardis command (delta range, auth).
+- **A merge done with the built-in `GITHUB_TOKEN` does NOT trigger downstream workflows.** GitHub's
+  loop-prevention: events created by `GITHUB_TOKEN` don't fire other `on:` triggers. So `auto-merge.yml`
+  must merge with a PAT (`AUTOMERGE_PAT`, `repo`+`workflow` scope) — a `GITHUB_TOKEN` merge into
+  `integration` would never fire `process-deploy.yml` and the deploy silently wouldn't happen.
+- **Auto-merge branch (integration) needs 0 required approvals + only the deploy check.** Branch protection
+  is per-branch in `gh-setup.sh`: branches with `approvers` in `.sf-devops.yml` (uat/production) get full
+  checks + reviews + strict; a branch with no approvers (integration) gets the deploy check only + 0 reviews
+  + non-strict, so GitHub native auto-merge (enabled via `gh repo edit --enable-auto-merge`) can merge on
+  green. A `REVIEW_COUNT=1` on integration would block auto-merge forever; MegaLinter runs advisory there
+  (not a required check), so auto-merge waits only on deployability.

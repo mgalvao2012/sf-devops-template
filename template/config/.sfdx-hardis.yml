@@ -21,5 +21,14 @@ autoCleanTypes:
 # Apex test strategy for deploys (hardis selects impacted tests for delta by default).
 testLevel: RunLocalTests
 
+# Delta deployments: on a minor->major merge (feature/fix -> integration/uat/production)
+# deploy ONLY the PR's committed metadata (sgd diff HEAD^..HEAD on the merge commit),
+# never the full source. major<->major promotions stay full for safety.
+# Requires healthy branch topology: a feature branch that genuinely diverges from its
+# target. A branch that already contains the whole target makes the post-merge range a
+# no-op (empty delta) — see CLAUDE.md "Gotchas". Config alone does not fix that; keep the
+# feature -> PR -> merge flow (never merge the target back into the feature before the PR).
+useDeltaDeployment: true
+
 # Per-branch target orgs are defined in config/branches/.sfdx-hardis.<branch>.yml
 # (integration, uat, production) — set targetUsername + instanceUrl there.

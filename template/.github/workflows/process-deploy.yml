@@ -49,7 +49,20 @@ jobs:
       # workspace as safe before any hardis/git step runs.
       - name: Mark workspace as safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      # Set env branch variable (github.ref_name seems to not work)
+      # Delta mode intersects the git delta with a base manifest (smart.js -> this.packageXmlFile):
+      # deployed set = base ∩ delta. This repo ships NO static manifest/package.xml on purpose — a
+      # stale one would silently drop any type it omits (the ASA silent-drop bug). Generate it fresh
+      # from the checked-out source every run so base ⊇ delta and the deployed set equals the PR's
+      # changed metadata. Without this file, delta crashes with ENOENT ./config/package.xml (full
+      # mode tolerates a missing manifest; delta copies it before the empty-check).
+      - name: Generate base manifest for delta deployment
+        run: |
+          if [ -d force-app ]; then
+            sf project generate manifest --source-dir force-app --output-dir manifest --name package
+          else
+            echo "No force-app directory — skipping base manifest generation."
+          fi
+        # Set env branch variable (github.ref_name seems to not work)
       - name: Set env.BRANCH
         run: echo "BRANCH=$(echo "$GITHUB_REF" | cut -d'/' -f 3)" >> "$GITHUB_ENV"
       # Login & check deploy with test classes & code coverage

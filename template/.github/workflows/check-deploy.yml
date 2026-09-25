@@ -39,7 +39,24 @@ jobs:
           persist-credentials: true
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0 # full history so hardis delta can diff against the base branch
-      # For a PR, the config/target org is the BASE branch (PR target), not the head branch.
+      # The sfdx-hardis container runs as a different user than the checkout owner,
+      # so git refuses to operate (dubious ownership) — mark the workspace safe.
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # For a PR, the config/target org is the BASE branch (PR target), not the head branch.
+      # Delta mode intersects the git delta with a base manifest (smart.js -> this.packageXmlFile):
+      # deployed set = base ∩ delta. This repo ships NO static manifest/package.xml on purpose — a
+      # stale one would silently drop any type it omits (the ASA silent-drop bug). Generate it fresh
+      # from the checked-out source every run so base ⊇ delta and the deployed set equals the PR's
+      # changed metadata. Without this file, delta crashes with ENOENT ./config/package.xml (full
+      # mode tolerates a missing manifest; delta copies it before the empty-check).
+      - name: Generate base manifest for delta deployment
+        run: |
+          if [ -d force-app ]; then
+            sf project generate manifest --source-dir force-app --output-dir manifest --name package
+          else
+            echo "No force-app directory — skipping base manifest generation."
+          fi
       # GITHUB_BASE_REF is already the bare branch name (no refs/heads/ prefix).
       - name: Set env.BRANCH
         run: echo "BRANCH=$GITHUB_BASE_REF" >> "$GITHUB_ENV"

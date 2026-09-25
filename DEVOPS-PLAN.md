@@ -43,6 +43,7 @@ dataSeeding:
 developmentBranch: integration
 installedPackages: []            # empty => nothing installed; else hardis installs automatically
 majorBranches: [integration, uat, production]
+useDeltaDeployment: true         # minor->major merges deploy only the PR's delta (major<->major stays full)
 # per-branch org mapping in config/branches/.sfdx-hardis.<branch>.yml
 ```
 

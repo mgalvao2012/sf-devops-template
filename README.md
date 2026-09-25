@@ -121,6 +121,11 @@ No direct commits to major branches; everything via PR.
   the safe order.
 - **Required status checks are job names,** not workflow names: `Check-only Deployment to Major
   Org` and `MegaLinter`.
+- **Delta deploys are on** (`useDeltaDeployment: true`): a merge into a major branch deploys only the
+  PR's changed metadata (major↔major promotions stay full). The repo ships **no static `package.xml`** —
+  both deploy workflows generate a base manifest from `force-app` on every run, so delta never drops a
+  metadata type or crashes on a missing manifest. Requires a healthy `feature → PR → merge` topology;
+  never merge the target branch back into a feature before its PR (see [CLAUDE.md](CLAUDE.md) Gotchas).
 - Environment required-reviewers need a public repo **or** GitHub Pro/Team/Enterprise; `gh-team:`
   approvers require a GitHub organization (use `gh-user:<login>` on a personal account).
 

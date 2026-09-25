@@ -31,3 +31,18 @@ repo creation, repo-level auth secrets, Environments + required reviewers, branc
 - **Pushing a major branch triggers `process-deploy.yml` immediately.** Configure Environments + branch
   protection (run `gh-setup.sh`) BEFORE pushing `uat`/`production`, or the first push deploys with no gate.
   `gh-setup.sh` pushes only the current branch on repo creation for this reason.
+- **Delta deploy needs a fresh base manifest — this repo ships NO static `package.xml` on purpose.**
+  `useDeltaDeployment: true` in `.sfdx-hardis.yml` makes the deployed set = base manifest ∩ git delta
+  (`smart.js` → `this.packageXmlFile`). A stale static manifest would silently drop any type it omits
+  (the ASA silent-drop bug); a *missing* one makes delta crash with `ENOENT ./config/package.xml` (full
+  mode tolerates it, delta copies it before the empty-check). Both `check-deploy.yml` and `process-deploy.yml`
+  therefore run `sf project generate manifest --source-dir force-app --output-dir manifest --name package`
+  every run so base ⊇ delta and the deployed set equals the PR's changed metadata.
+- **Delta needs healthy branch topology, config alone won't save you.** Delta is `sgd diff HEAD^..HEAD` on
+  the merge commit. A feature branch that already contains the whole target produces an empty delta (no-op
+  deploy). Keep the `feature → PR → merge` flow; never merge the target branch back into the feature before
+  the PR. major↔major promotions stay full-deploy for safety.
+- **sfdx-hardis container runs as a different user than the checkout owner → git "dubious ownership".** git
+  refuses to operate on the workspace. Both deploy workflows run
+  `git config --global --add safe.directory "$GITHUB_WORKSPACE"` as the first step before any git-backed
+  hardis command (delta range, auth).

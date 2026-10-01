@@ -5,8 +5,9 @@ projects: per-project variability lives in a config file, not in forked pipeline
 orchestration engine is **sfdx-hardis** (native workflows, pinned/versioned engine image);
 the framework adds only a thin policy overlay on top.
 
-- **Architecture & decisions:** [DEVOPS-PLAN.md](DEVOPS-PLAN.md)
-- **Step-by-step how-to:** [IMPLEMENTATION.md](IMPLEMENTATION.md)
+- **Architecture & decisions:** [docs/DEVOPS-PLAN.md](docs/DEVOPS-PLAN.md)
+- **Step-by-step how-to:** [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
+- **CI/CD pipeline diagram:** [docs/pipeline.md](docs/pipeline.md)
 
 ## What it is
 
@@ -28,8 +29,12 @@ config, the engine branches on it.
 
 ```
 sf-devops/
-├── DEVOPS-PLAN.md              # architecture & decisions
-├── IMPLEMENTATION.md           # implementation guide
+├── README.md                   # overview & quick start
+├── docs/                       # project documentation
+│   ├── DEVOPS-PLAN.md          #   architecture & decisions
+│   ├── IMPLEMENTATION.md       #   implementation guide
+│   ├── CLAUDE.md               #   project notes & gotchas (Claude Code)
+│   └── pipeline.md             #   CI/CD pipeline diagram
 ├── scripts/                    # framework tooling (run to onboard a project)
 │   ├── bootstrap.sh            #   greenfield — new project
 │   ├── adopt.sh                #   brownfield — existing DX project (git-guarded)
@@ -87,7 +92,7 @@ After either path:
    sandbox types, approvers) and [config/.sfdx-hardis.yml](template/config/.sfdx-hardis.yml)
    (`installedPackages`, branch/org mapping).
 2. `bash scripts/preflight.sh` — confirms Dev Hub + approvers.
-3. Set the auth-URL secrets and run `bash scripts/gh-setup.sh` (see [IMPLEMENTATION.md §1](IMPLEMENTATION.md)).
+3. Set the auth-URL secrets and run `bash scripts/gh-setup.sh` (see [docs/IMPLEMENTATION.md §1](docs/IMPLEMENTATION.md)).
 
 ## Branching model
 
@@ -132,7 +137,7 @@ No direct commits to major branches; everything via PR.
   PR's changed metadata (major↔major promotions stay full). The repo ships **no static `package.xml`** —
   both deploy workflows generate a base manifest from `force-app` on every run, so delta never drops a
   metadata type or crashes on a missing manifest. Requires a healthy `feature → PR → merge` topology;
-  never merge the target branch back into a feature before its PR (see [CLAUDE.md](CLAUDE.md) Gotchas).
+  never merge the target branch back into a feature before its PR (see [docs/CLAUDE.md](docs/CLAUDE.md) Gotchas).
 - Environment required-reviewers need a public repo **or** GitHub Pro/Team/Enterprise; `gh-team:`
   approvers require a GitHub organization (use `gh-user:<login>` on a personal account).
 

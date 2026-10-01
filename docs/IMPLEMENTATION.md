@@ -12,8 +12,12 @@ Design rationale lives in [DEVOPS-PLAN.md](DEVOPS-PLAN.md). This is the how-to.
 
 ```
 sf-devops/                     # the framework repo (central, published once)
-├── DEVOPS-PLAN.md             # architecture & decisions
-├── IMPLEMENTATION.md          # this guide
+├── README.md                  # overview & quick start
+├── docs/                      # project documentation
+│   ├── DEVOPS-PLAN.md         #   architecture & decisions
+│   ├── IMPLEMENTATION.md      #   this guide
+│   ├── CLAUDE.md              #   project notes & gotchas (Claude Code)
+│   └── pipeline.md            #   CI/CD pipeline diagram
 ├── scripts/                   # framework tooling (run to onboard a project)
 │   ├── bootstrap.sh           #   greenfield
 │   ├── adopt.sh               #   brownfield (overwrites in place; git tracks changes)

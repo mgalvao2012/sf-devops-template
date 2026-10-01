@@ -46,10 +46,10 @@ Done. Next:
   2. Edit config/.sfdx-hardis.yml (installedPackages, branch/org mapping) — the engine config.
   3. Authenticate the Dev Hub:      sf org login web --set-default-dev-hub --alias DevHub
   4. Verify prerequisites:          bash scripts/preflight.sh
-  5. Spin a scratch org:            sf hardis:scratch:create   (or: sf org create scratch -f config/project-scratch-def.json -a dev -d -y 7)
+  5. Spin a scratch org:            sf org create scratch -f config/project-scratch-def.json -a dev -d -y 7
   6. Seed data (optional):          bash scripts/seed-data.sh dev
   7. Set config/branches/.sfdx-hardis.<branch>.yml targetUsername for integration/uat/production orgs.
-  8. Authenticate one org per branch locally (aliases = config/.sf-devops.yml orgAlias: int/uat/prod).
+  8. Authenticate one org per branch locally (aliases = config/.sf-devops.yml orgAlias: integration/uat/prod).
   9. Configure GitHub CI (secrets + Environments + branch protection) BEFORE pushing uat/production:
        gh auth login && bash scripts/gh-setup.sh
      Then push. (First push to production would otherwise trigger a prod deploy with no reviewer gate.)

@@ -144,6 +144,8 @@ Rule: no direct commits to major branches; everything via PR.
 
 ## 4. Pipeline stages & gates
 
+> 📊 Runtime wiring of these gates across the three workflows: [`pipeline.md`](pipeline.md).
+
 ### Gate A — on every PR to a major branch (`integration`/`uat`/`production`) (fast, ephemeral)
 Runs in CI (no manual org needed), split across two workflows:
 
